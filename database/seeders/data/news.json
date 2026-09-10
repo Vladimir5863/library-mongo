@@ -1,0 +1,37 @@
+[
+    {
+        "type": "announcement",
+        "title": "Nove knjige stigle u biblioteku",
+        "text": "Dragi čitaoci, obaveštavamo vas da je biblioteka Drvce dobila novu pošiljku knjiga. U novoj kolekciji možete pronaći najnovija izdanja domaćih i stranih autora. Knjige su dostupne za iznajmljivanje od ponedeljka.",
+        "startDate": "2026-03-01",
+        "endDate": "2026-04-01"
+    },
+    {
+        "type": "event",
+        "title": "Književno veče - Mart 2026",
+        "text": "Pozivamo vas na književno veče koje će se održati u prostorijama biblioteke. Gostujući autor će čitati odlomke iz svog najnovijeg romana i odgovarati na pitanja publike. Ulaz je slobodan.",
+        "startDate": "2026-03-15",
+        "endDate": "2026-03-15"
+    },
+    {
+        "type": "promotion",
+        "title": "Besplatna članarina za studente",
+        "text": "Tokom meseca marta, svi studenti mogu dobiti besplatnu godišnju članarinu uz predočenje važeće studentske legitimacije. Iskoristite ovu jedinstvenu priliku i pristupite našoj bogatoj kolekciji knjiga.",
+        "startDate": "2026-03-01",
+        "endDate": "2026-03-31"
+    },
+    {
+        "type": "event",
+        "title": "Radionica kreativnog pisanja",
+        "text": "Biblioteka Drvce organizuje radionicu kreativnog pisanja za sve ljubitelje književnosti. Radionica je namenjena svim uzrastima i ne zahteva prethodno iskustvo. Prijavite se na recepciji biblioteke.",
+        "startDate": "2026-03-20",
+        "endDate": "2026-03-20"
+    },
+    {
+        "type": "announcement",
+        "title": "Izmena radnog vremena",
+        "text": "Obaveštavamo naše čitaoce da će biblioteka tokom uskršnjih praznika raditi po skraćenom radnom vremenu. Radnim danima od 9 do 14 časova, vikendom zatvoreno.",
+        "startDate": "2026-04-01",
+        "endDate": "2026-04-10"
+    }
+]
