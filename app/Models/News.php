@@ -1,12 +1,13 @@
 <?php
 namespace App\Models;
 
-use Illuminate\Database\Eloquent\Model;
+use MongoDB\Laravel\Eloquent\Model;
 
 class News extends Model
 {
-    protected $primaryKey = "newsId";
+    protected $connection = "mongodb";
 
+    protected $table = "news";
     protected $fillable = [
         "type",
         "logo",

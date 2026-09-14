@@ -1,14 +1,11 @@
 <?php
 namespace App\Models;
 
-use Illuminate\Database\Eloquent\Model;
+use MongoDB\Laravel\Eloquent\Model;
 
 class Subscription extends Model
 {
-    protected $primaryKey = "subscriptionId";
-
     protected $fillable = [
-        "userId",
         "startDate",
         "endDate",
         "price",
@@ -16,9 +13,4 @@ class Subscription extends Model
         "accountNumber",
         "autoRenew",
     ];
-
-    public function user()
-    {
-        return $this->belongsTo(User::class, "userId", "userId");
-    }
 }

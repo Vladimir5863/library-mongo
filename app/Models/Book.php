@@ -1,15 +1,17 @@
 <?php
 namespace App\Models;
 
-use Illuminate\Database\Eloquent\Model;
-use Carbon\Carbon;
+use MongoDB\Laravel\Eloquent\Model;
+use MongoDB\Laravel\Relations\EmbedsMany;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Carbon\Carbon;
 
 class Book extends Model
 {
-    protected $primaryKey = "bookId";
-
     use HasFactory;
+
+    protected $connection = "mongodb";
+    protected $table = "books";
 
     protected $fillable = [
         "preview_image",
@@ -26,30 +28,33 @@ class Book extends Model
         "preview",
     ];
 
-    public function prices()
+    public function prices(): EmbedsMany
     {
-        return $this->hasMany(Price::class, "bookId", "bookId");
+        return $this->embedsMany(Price::class);
     }
 
-    public function currentPrice()
+    public function currentPrice(): ?Price
     {
-        return $this->hasOne(Price::class, "bookId", "bookId")
-            ->whereDate("startDate", "<=", Carbon::today())
-            ->whereDate("endDate", ">=", Carbon::today());
+        return $this->prices()
+            ->get()
+            ->first(
+                fn($p) => $p->startDate <= Carbon::today() &&
+                    $p->endDate >= Carbon::today(),
+            );
     }
 
     public function loans()
     {
-        return $this->hasMany(Loan::class, "bookId", "bookId");
+        return $this->hasMany(Loan::class, "bookId", "_id");
     }
 
     public function sells()
     {
-        return $this->hasMany(Sell::class, "bookId", "bookId");
+        return $this->hasMany(Sell::class, "bookId", "_id");
     }
 
     public function uses()
     {
-        return $this->hasMany(Uses::class, "bookId", "bookId");
+        return $this->hasMany(Uses::class, "bookId", "_id");
     }
 }

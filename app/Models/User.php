@@ -1,7 +1,8 @@
 <?php
 namespace App\Models;
 
-use Illuminate\Foundation\Auth\User as Authenticatable;
+use MongoDB\Laravel\Auth\User as Authenticatable;
+use MongoDB\Laravel\Relations\EmbedsMany;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Carbon\Carbon;
@@ -9,10 +10,10 @@ use Carbon\Carbon;
 class User extends Authenticatable
 {
     use HasFactory;
-
     use SoftDeletes;
 
-    protected $primaryKey = "userId";
+    protected $connection = "mongodb";
+    protected $table = "users";
 
     protected $fillable = [
         "avatar",
@@ -22,40 +23,45 @@ class User extends Authenticatable
         "password",
         "userType",
         "numberOfLoans",
+        "accountNumber",
     ];
 
     protected $hidden = ["password"];
 
-    public function subscriptions()
+    // Ugnežđena istorija pretplata — deo istog dokumenta, ne posebna kolekcija
+    public function subscriptions(): EmbedsMany
     {
-        return $this->hasMany(Subscription::class, "userId", "userId");
+        return $this->embedsMany(Subscription::class);
     }
 
-    // Aktivna pretplata — između startDate i endDate
-    public function activeSubscription()
+    public function activeSubscription(): ?Subscription
     {
-        return $this->hasOne(Subscription::class, "userId", "userId")
-            ->whereDate("startDate", "<=", Carbon::today())
-            ->whereDate("endDate", ">=", Carbon::today());
+        return $this->subscriptions()
+            ->get()
+            ->first(
+                fn($s) => $s->startDate <= Carbon::today() &&
+                    $s->endDate >= Carbon::today(),
+            );
     }
 
     public function hasActiveSubscription(): bool
     {
-        return $this->activeSubscription()->exists();
+        return (bool) $this->activeSubscription();
     }
 
+    // Referencirane kolekcije — nezavisne, neograničeno rastu
     public function loans()
     {
-        return $this->hasMany(Loan::class, "userId", "userId");
+        return $this->hasMany(Loan::class, "userId", "_id");
     }
 
     public function sells()
     {
-        return $this->hasMany(Sell::class, "userId", "userId");
+        return $this->hasMany(Sell::class, "userId", "_id");
     }
 
     public function uses()
     {
-        return $this->hasMany(Uses::class, "userId", "userId");
+        return $this->hasMany(Uses::class, "userId", "_id");
     }
 }

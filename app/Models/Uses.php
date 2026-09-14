@@ -1,11 +1,13 @@
 <?php
 namespace App\Models;
 
-use Illuminate\Database\Eloquent\Model;
+use MongoDB\Laravel\Eloquent\Model;
 
 class Uses extends Model
 {
-    protected $primaryKey = "useId";
+    protected $connection = "mongodb";
+
+    protected $table = "uses";
 
     protected $fillable = [
         "userId",
@@ -19,11 +21,11 @@ class Uses extends Model
 
     public function user()
     {
-        return $this->belongsTo(User::class, "userId", "userId");
+        return $this->belongsTo(User::class, "userId", "_id");
     }
 
     public function book()
     {
-        return $this->belongsTo(Book::class, "bookId", "bookId");
+        return $this->belongsTo(Book::class, "bookId", "_id");
     }
 }
