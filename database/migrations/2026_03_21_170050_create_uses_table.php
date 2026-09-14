@@ -1,39 +1,21 @@
 <?php
 
 use Illuminate\Database\Migrations\Migration;
-use Illuminate\Database\Schema\Blueprint;
+use MongoDB\Laravel\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
 
 return new class extends Migration {
-    /**
-     * Run the migrations.
-     */
     public function up(): void
     {
-        Schema::create("uses", function (Blueprint $table) {
-            $table->id("useId");
-            $table
-                ->foreignId("userId")
-                ->constrained("users", "userId")
-                ->cascadeOnDelete();
-            $table
-                ->foreignId("bookId")
-                ->constrained("books", "bookId")
-                ->cascadeOnDelete();
-            $table->string("type");
-            $table->integer("points")->default(0);
-            $table->timestamp("date")->useCurrent();
-            $table->integer("remaining")->default(0);
-            $table->boolean("low_stock")->default(false);
-            $table->timestamps();
+        Schema::connection("mongodb")->create("uses", function (Blueprint $collection) {
+            $collection->index("bookId");
+            $collection->index("userId");
+            $collection->index("date");
         });
     }
 
-    /**
-     * Reverse the migrations.
-     */
     public function down(): void
     {
-        Schema::dropIfExists("uses");
+        Schema::connection("mongodb")->dropIfExists("uses");
     }
 };
