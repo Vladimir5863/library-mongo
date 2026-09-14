@@ -19,8 +19,8 @@ class ProfileController extends Controller
         return Inertia::render("Profile/Index", [
             "user" => $user,
             "stats" => [
-                "totalLoans" => Loan::where("userId", $user->userId)->count(),
-                "totalSells" => Sell::where("userId", $user->userId)->count(),
+                "totalLoans" => Loan::where("userId", $user->id)->count(),
+                "totalSells" => Sell::where("userId", $user->id)->count(),
                 "hasSubscription" => $user->hasActiveSubscription(),
             ],
         ]);
@@ -36,7 +36,7 @@ class ProfileController extends Controller
             "email" => [
                 "required",
                 "email",
-                Rule::unique("users", "email")->ignore($user->userId, "userId"),
+                Rule::unique("users", "email")->ignore($user->id, "_id"),
             ],
         ]);
 
@@ -55,9 +55,7 @@ class ProfileController extends Controller
         $user = Auth::user();
 
         if (!Hash::check($request->current_password, $user->password)) {
-            return back()->withErrors([
-                "current_password" => "Trenutna lozinka nije ispravna.",
-            ]);
+            return back()->withErrors(["current_password" => "Trenutna lozinka nije ispravna."]);
         }
 
         $user->update(["password" => bcrypt($request->password)]);
@@ -73,20 +71,13 @@ class ProfileController extends Controller
 
         $user = Auth::user();
 
-        // Obriši stari avatar iz foldera
-        Storage::disk("public")->delete("avatars/{$user->userId}.png");
+        Storage::disk("public")->delete("avatars/{$user->id}.png");
 
-        // Sačuvaj novi u bazu i folder
-        $base64 = base64_encode(
-            file_get_contents($request->file("avatar")->getRealPath()),
-        );
+        $base64 = base64_encode(file_get_contents($request->file("avatar")->getRealPath()));
 
         $user->update(["avatar" => $base64]);
 
-        Storage::disk("public")->put(
-            "avatars/{$user->userId}.png",
-            base64_decode($base64),
-        );
+        Storage::disk("public")->put("avatars/{$user->id}.png", base64_decode($base64));
 
         return back()->with("success", "Avatar ažuriran.");
     }

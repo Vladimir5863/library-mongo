@@ -3,6 +3,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Loan;
 use App\Models\Book;
+use App\Models\Uses;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Inertia\Inertia;
@@ -16,23 +17,19 @@ class LoanController extends Controller
             ->orderBy("created_at", "desc")
             ->get();
 
-        return Inertia::render("Loans/Index", [
-            "loans" => $loans,
-        ]);
+        return Inertia::render("Loans/Index", ["loans" => $loans]);
     }
 
     public function store(Request $request)
     {
         $user = Auth::user();
 
-        // Provera pretplate
         if (!$user->hasActiveSubscription()) {
             return back()->withErrors([
                 "loan" => "Potrebna je aktivna pretplata za pozajmicu.",
             ]);
         }
 
-        // Provera broja dostupnih pozajmica
         if ($user->numberOfLoans <= 0) {
             return back()->withErrors([
                 "loan" => "Nemate dostupnih pozajmica.",
@@ -40,29 +37,28 @@ class LoanController extends Controller
         }
 
         $fields = $request->validate([
-            "bookId" => "required|exists:books,bookId",
+            "bookId" => "required|exists:books,_id",
             "deliveryType" => "required|in:physical,library",
         ]);
 
         $book = Book::findOrFail($fields["bookId"]);
 
-        // Provera dostupnosti knjige
         if ($book->remainingForLoan <= 0) {
             return back()->withErrors([
                 "loan" => "Knjiga nije dostupna za pozajmicu.",
             ]);
         }
 
-        \App\Models\Uses::create([
-            "userId" => $user->userId,
-            "bookId" => $book->bookId,
+        Uses::create([
+            "userId" => $user->id,
+            "bookId" => $book->id,
             "type" => "loan",
             "points" => 5,
         ]);
-        // Kreiranje pozajmice
+
         Loan::create([
-            "bookId" => $book->bookId,
-            "userId" => $user->userId,
+            "bookId" => $book->id,
+            "userId" => $user->id,
             "loanDate" => now(),
             "endReturnDate" => now()->addDays(30),
             "status" => "manual_pickup_requested",
@@ -71,7 +67,6 @@ class LoanController extends Controller
             "low_stock" => $book->remainingForLoan <= 10,
         ]);
 
-        // Smanjenje dostupnih primeraka i broja pozajmica
         $book->decrement("remainingForLoan");
         $user->decrement("numberOfLoans");
 
@@ -83,8 +78,8 @@ class LoanController extends Controller
     public function return(Request $request, $id)
     {
         $user = Auth::user();
-        $loan = Loan::where("loanId", $id)
-            ->where("userId", $user->userId)
+        $loan = Loan::where("_id", $id)
+            ->where("userId", $user->id)
             ->firstOrFail();
 
         $fields = $request->validate([
@@ -99,7 +94,6 @@ class LoanController extends Controller
             "returnType" => $fields["returnType"],
         ]);
 
-        // Vraćanje primerka i pozajmice korisniku
         $loan->book->increment("remainingForLoan");
         $user->increment("numberOfLoans");
 
@@ -116,14 +110,10 @@ class LoanController extends Controller
         ]);
 
         $loan = Loan::findOrFail($id);
-
         $data = ["status" => $request->status];
 
-        // Ako je vraćena — postavi returnDate na danas
         if (in_array($request->status, ["returned_on_time", "returned_late"])) {
             $data["returnDate"] = now();
-
-            // Vrati primerak i broj pozajmica korisniku
             $loan->book->increment("remainingForLoan");
             $loan->user->increment("numberOfLoans");
         }

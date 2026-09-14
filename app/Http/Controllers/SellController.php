@@ -13,7 +13,6 @@ class SellController extends Controller
     {
         $user = Auth::user();
 
-        // Provera pretplate
         if (!$user->hasActiveSubscription()) {
             return back()->withErrors([
                 "sell" => "Potrebna je aktivna pretplata za kupovinu.",
@@ -21,36 +20,35 @@ class SellController extends Controller
         }
 
         $fields = $request->validate([
-            "bookId" => "required|exists:books,bookId",
+            "bookId" => "required|exists:books,_id",
             "deliveryType" => "required|in:physical,library",
         ]);
 
-        $book = Book::with("currentPrice")->findOrFail($fields["bookId"]);
+        $book = Book::findOrFail($fields["bookId"]);
 
-        // Provera dostupnosti
         if ($book->remainingForSell <= 0) {
             return back()->withErrors([
                 "sell" => "Knjiga nije dostupna za kupovinu.",
             ]);
         }
 
-        // Provera cene
-        if (!$book->currentPrice) {
+        $currentPrice = $book->currentPrice();
+
+        if (!$currentPrice) {
             return back()->withErrors([
                 "sell" => "Knjiga trenutno nema definisanu cenu.",
             ]);
         }
 
-        // Cena sa eventualnim popustom
-        $price = $book->currentPrice->price;
-        $activeSubscription = $user->activeSubscription;
+        $price = $currentPrice->price;
+        $activeSubscription = $user->activeSubscription();
         if ($activeSubscription && $activeSubscription->price == 2999) {
             $price = round($price * 0.9);
         }
 
         Sell::create([
-            "bookId" => $book->bookId,
-            "userId" => $user->userId,
+            "bookId" => $book->id,
+            "userId" => $user->id,
             "sellDate" => now(),
             "deliveryType" => $fields["deliveryType"],
             "price" => $price,
@@ -61,8 +59,8 @@ class SellController extends Controller
         $book->decrement("remainingForSell");
 
         Uses::create([
-            "userId" => $user->userId,
-            "bookId" => $book->bookId,
+            "userId" => $user->id,
+            "bookId" => $book->id,
             "type" => "sell",
             "points" => 10,
         ]);

@@ -1,5 +1,4 @@
 <?php
-
 namespace App\Http\Controllers;
 
 use Illuminate\Http\Request;
@@ -12,12 +11,7 @@ class AuthControler extends Controller
     public function register(Request $request)
     {
         $fields = $request->validate([
-            "avatar" => [
-                "nullable",
-                "image",
-                "mimes:jpeg,png,jpg,gif,svg",
-                "max:2048",
-            ],
+            "avatar" => ["nullable", "image", "mimes:jpeg,png,jpg,gif,svg", "max:2048"],
             "name" => "required",
             "surname" => "required",
             "email" => "required|email|unique:users,email",
@@ -36,16 +30,14 @@ class AuthControler extends Controller
 
         if ($user->avatar) {
             Storage::disk("public")->put(
-                "avatars/{$user->userId}.png",
+                "avatars/{$user->id}.png",
                 base64_decode($user->avatar),
             );
         }
 
         Auth::login($user);
 
-        return redirect()
-            ->route("home")
-            ->with("success", "Registracija uspešna!");
+        return redirect()->route("home")->with("success", "Registracija uspešna!");
     }
 
     public function login(Request $request)
@@ -56,18 +48,16 @@ class AuthControler extends Controller
         ]);
 
         if (!Auth::attempt($fields)) {
-            return back()->withErrors([
-                "email" => "Pogrešan email ili šifra.",
-            ]);
+            return back()->withErrors(["email" => "Pogrešan email ili šifra."]);
         }
 
         $user = Auth::user();
 
-        // Kopiraj avatar iz baze u folder
         if ($user->avatar) {
-            $imageData = base64_decode($user->avatar);
-            $filename = "avatars/{$user->userId}.png";
-            Storage::disk("public")->put($filename, $imageData);
+            Storage::disk("public")->put(
+                "avatars/{$user->id}.png",
+                base64_decode($user->avatar),
+            );
         }
 
         $request->session()->regenerate();
@@ -79,11 +69,10 @@ class AuthControler extends Controller
         $user = Auth::user();
 
         if ($user->avatar) {
-            Storage::disk("public")->delete("avatars/{$user->userId}.png");
+            Storage::disk("public")->delete("avatars/{$user->id}.png");
         }
 
         Auth::logout();
-
         $request->session()->invalidate();
         $request->session()->regenerateToken();
 

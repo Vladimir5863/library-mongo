@@ -1,7 +1,6 @@
 <?php
 namespace App\Http\Controllers;
 
-use App\Models\Subscription;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Inertia\Inertia;
@@ -11,12 +10,21 @@ class SubscriptionController extends Controller
     public function index()
     {
         $user = Auth::user();
+
         return Inertia::render("Subscription/Index", [
-            "subscription" => $user->activeSubscription,
+            "subscription" => $user->activeSubscription(),
             "hasActive" => $user->hasActiveSubscription(),
-            "history" => Subscription::where("userId", $user->userId)
-                ->orderBy("created_at", "desc")
-                ->get(),
+            "history" => $user->subscriptions()
+                ->get()
+                ->sortByDesc("created_at")
+                ->values(),
+        ]);
+    }
+
+    public function create()
+    {
+        return Inertia::render("Subscription/Create", [
+            "accountNumber" => Auth::user()->accountNumber,
         ]);
     }
 
@@ -37,11 +45,9 @@ class SubscriptionController extends Controller
         ]);
 
         $price = $fields["plan"] === "yearly" ? 2999 : 299;
-        $endDate =
-            $fields["plan"] === "yearly" ? now()->addYear() : now()->addMonth();
+        $endDate = $fields["plan"] === "yearly" ? now()->addYear() : now()->addMonth();
 
-        Subscription::create([
-            "userId" => $user->userId,
+        $user->subscriptions()->create([
             "startDate" => now(),
             "endDate" => $endDate,
             "price" => $price,
@@ -55,17 +61,10 @@ class SubscriptionController extends Controller
             ->with("success", "Pretplata uspešno aktivirana!");
     }
 
-    public function create()
-    {
-        return Inertia::render("Subscription/Create", [
-            "accountNumber" => Auth::user()->accountNumber,
-        ]);
-    }
-
     public function cancel()
     {
         $user = Auth::user();
-        $subscription = $user->activeSubscription()->first();
+        $subscription = $user->activeSubscription();
 
         if (!$subscription) {
             return back()->withErrors([
@@ -73,10 +72,9 @@ class SubscriptionController extends Controller
             ]);
         }
 
-        $subscription->update([
-            "endDate" => now()->subDay(),
-            "active" => false,
-        ]);
+        $subscription->endDate = now()->subDay();
+        $subscription->active = false;
+        $user->subscriptions()->save($subscription);
 
         return redirect()
             ->route("subscription.index")

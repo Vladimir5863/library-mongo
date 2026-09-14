@@ -3,22 +3,16 @@ namespace App\Http\Controllers;
 
 use App\Models\User;
 use App\Models\Book;
-use App\Models\Price;
-use App\Models\Subscription;
 use App\Models\Loan;
 use App\Models\Sell;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
-use Carbon\Carbon;
 
 class AdminController extends Controller
 {
     public function index()
     {
-        $lowStockCount = Book::whereHas(
-            "loans",
-            fn($q) => $q->where("low_stock", true),
-        )
+        $lowStockCount = Book::whereHas("loans", fn($q) => $q->where("low_stock", true))
             ->orWhereHas("sells", fn($q) => $q->where("low_stock", true))
             ->count();
 
@@ -26,10 +20,9 @@ class AdminController extends Controller
             "stats" => [
                 "users" => User::count(),
                 "books" => Book::count(),
-                "activeSubscriptions" => Subscription::where(
-                    "active",
-                    true,
-                )->count(),
+                // Dot-notacija upit nad ugnežđenim nizom — pogađa korisnike koji imaju
+                // BAR JEDNU pretplatu sa active=true (poslovno pravilo dozvoljava najviše jednu).
+                "activeSubscriptions" => User::where("subscriptions.active", true)->count(),
                 "activeLoans" => Loan::whereNotIn("status", [
                     "returned_on_time",
                     "returned_late",
@@ -42,25 +35,19 @@ class AdminController extends Controller
     public function users()
     {
         return Inertia::render("Admin/Users", [
-            "users" => User::withTrashed()
-                ->orderBy("created_at", "desc")
-                ->paginate(15),
+            "users" => User::withTrashed()->orderBy("created_at", "desc")->paginate(15),
         ]);
     }
 
     public function banUser($id)
     {
-        $user = User::findOrFail($id);
-        $user->delete();
-
+        User::findOrFail($id)->delete();
         return back()->with("success", "Korisnik banovan.");
     }
 
     public function unbanUser($id)
     {
-        $user = User::withTrashed()->findOrFail($id);
-        $user->restore();
-
+        User::withTrashed()->findOrFail($id)->restore();
         return back()->with("success", "Korisnik odbanovan.");
     }
 
@@ -77,20 +64,39 @@ class AdminController extends Controller
 
     public function subscriptions()
     {
+        // Nema više jedne kolekcije za paginaciju — pretplate su ugnežđene po korisniku.
+        // Spljoštavamo ih ovde i ručno paginiramo (kompromis koji embedding uvodi).
+        $page = request("page", 1);
+        $perPage = 15;
+
+        $allSubscriptions = User::all()->flatMap(function ($user) {
+            return $user->subscriptions()->get()->map(function ($sub) use ($user) {
+                $sub->setRelation("user", $user);
+                return $sub;
+            });
+        })->sortByDesc("created_at")->values();
+
+        $items = $allSubscriptions->slice(($page - 1) * $perPage, $perPage)->values();
+
         return Inertia::render("Admin/Subscriptions", [
-            "subscriptions" => Subscription::with("user")
-                ->orderBy("created_at", "desc")
-                ->paginate(15),
+            "subscriptions" => [
+                "data" => $items,
+                "total" => $allSubscriptions->count(),
+                "current_page" => (int) $page,
+                "per_page" => $perPage,
+            ],
         ]);
     }
 
     public function books()
     {
-        return Inertia::render("Admin/Books", [
-            "books" => Book::with("currentPrice")
-                ->orderBy("title")
-                ->paginate(15),
-        ]);
+        $books = Book::orderBy("title")->paginate(15);
+        $books->getCollection()->transform(function ($book) {
+            $book->currentPriceValue = $book->currentPrice();
+            return $book;
+        });
+
+        return Inertia::render("Admin/Books", ["books" => $books]);
     }
 
     public function updatePrice(Request $request, $id)
@@ -103,14 +109,16 @@ class AdminController extends Controller
 
         $book = Book::findOrFail($id);
 
-        //Deaktiviraj staru cenu
-        Price::where("bookId", $book->bookId)
-            ->whereDate("endDate", ">=", now())
-            ->update(["endDate" => now()->subDay()]);
+        $oldPrice = $book->prices()->get()->first(
+            fn($p) => $p->endDate >= now(),
+        );
 
-        // Dodaj novu cenu
-        Price::create([
-            "bookId" => $book->bookId,
+        if ($oldPrice) {
+            $oldPrice->endDate = now()->subDay();
+            $book->prices()->save($oldPrice);
+        }
+
+        $book->prices()->create([
             "startDate" => $request->startDate,
             "endDate" => $request->endDate,
             "price" => $request->price,
@@ -133,14 +141,8 @@ class AdminController extends Controller
             "remainingForSell" => $request->remainingForSell,
         ]);
 
-        // Reset low_stock flag for all linked records, jer je zaliha osvežena.
-        Loan::where("bookId", $book->bookId)
-            ->where("low_stock", true)
-            ->update(["low_stock" => false]);
-
-        Sell::where("bookId", $book->bookId)
-            ->where("low_stock", true)
-            ->update(["low_stock" => false]);
+        Loan::where("bookId", $book->id)->where("low_stock", true)->update(["low_stock" => false]);
+        Sell::where("bookId", $book->id)->where("low_stock", true)->update(["low_stock" => false]);
 
         return back()->with("success", "Stanje ažurirano.");
     }
@@ -148,52 +150,28 @@ class AdminController extends Controller
     public function loans()
     {
         return Inertia::render("Admin/Loans", [
-            "loans" => Loan::with(["user", "book"])
-                ->orderBy("created_at", "desc")
-                ->paginate(15),
+            "loans" => Loan::with(["user", "book"])->orderBy("created_at", "desc")->paginate(15),
         ]);
     }
 
     public function getLowStockBooks()
     {
-        // Pokupi ID-jeve knjiga koje imaju low_stock stanje u jednoj ili obe tabele
-        $loanBookIds = Book::whereHas(
-            "loans",
-            fn($q) => $q->where("low_stock", true),
-        )->pluck("bookId");
-
-        $sellBookIds = Book::whereHas(
-            "sells",
-            fn($q) => $q->where("low_stock", true),
-        )->pluck("bookId");
+        $loanBookIds = Book::whereHas("loans", fn($q) => $q->where("low_stock", true))->pluck("_id");
+        $sellBookIds = Book::whereHas("sells", fn($q) => $q->where("low_stock", true))->pluck("_id");
 
         $allBooks = $loanBookIds->concat($sellBookIds)->unique();
+        $books = Book::whereIn("_id", $allBooks)->get();
 
-        // Učitaj knjige jedinstveno po bookId
-        $books = Book::whereIn("bookId", $allBooks)->get();
-
-        $alerts = $books->map(function ($book) use (
-            $loanBookIds,
-            $sellBookIds,
-        ) {
-            $loanLow = $loanBookIds->contains($book->bookId);
-            $sellLow = $sellBookIds->contains($book->bookId);
-
-            $type =
-                $loanLow && $sellLow
-                    ? "loan/sell"
-                    : ($sellLow
-                        ? "sell"
-                        : "loan");
+        $alerts = $books->map(function ($book) use ($loanBookIds, $sellBookIds) {
+            $loanLow = $loanBookIds->contains($book->id);
+            $sellLow = $sellBookIds->contains($book->id);
 
             return [
                 "book" => $book,
-                "type" => $type,
+                "type" => $loanLow && $sellLow ? "loan/sell" : ($sellLow ? "sell" : "loan"),
             ];
         });
 
-        return Inertia::render("Admin/BookAlert", [
-            "alerts" => $alerts,
-        ]);
+        return Inertia::render("Admin/BookAlert", ["alerts" => $alerts]);
     }
 }

@@ -1,12 +1,10 @@
 <?php
-
 namespace App\Http\Controllers;
 
 use Illuminate\Http\Request;
 use App\Models\Book;
-use Inertia\Inertia;
 use App\Models\Uses;
-use App\Http\Controllers\Controller;
+use Inertia\Inertia;
 use Illuminate\Support\Facades\Auth;
 
 class BookController extends Controller
@@ -20,12 +18,12 @@ class BookController extends Controller
 
     public function show($id)
     {
-        $book = Book::with("currentPrice")->findOrFail($id);
+        $book = Book::findOrFail($id);
 
         if (Auth::check()) {
             Uses::create([
                 "userId" => Auth::id(),
-                "bookId" => $book->bookId,
+                "bookId" => $book->id,
                 "type" => "view",
                 "points" => 1,
             ]);
@@ -33,8 +31,9 @@ class BookController extends Controller
 
         return Inertia::render("Books/Show", [
             "book" => $book,
+            "currentPrice" => $book->currentPrice(),
             "relatedBooks" => Book::where("genre", $book->genre)
-                ->where("bookId", "!=", $id)
+                ->where("_id", "!=", $id)
                 ->limit(4)
                 ->get(),
         ]);
@@ -42,20 +41,20 @@ class BookController extends Controller
 
     public function popular()
     {
-        $books = Book::select("books.*")
-            ->join("uses", "books.bookId", "=", "uses.bookId")
-            ->where("uses.date", ">=", now()->subMonth())
-            ->groupBy("books.bookId")
-            ->orderByRaw("SUM(uses.points) DESC")
-            ->limit(10)
-            ->get();
+        // Mongo nema JOIN — dvostepeni upit: prvo agregacija poena po knjizi, zatim učitavanje knjiga.
+        $topBookIds = Uses::where("date", ">=", now()->subMonth())
+            ->get()
+            ->groupBy("bookId")
+            ->map(fn($group) => $group->sum("points"))
+            ->sortDesc()
+            ->take(10)
+            ->keys();
 
-        // Ako nema podataka, vrati random knjige
-        if ($books->isEmpty()) {
-            return Book::inRandomOrder()->limit(10)->get();
-        }
+        $books = Book::whereIn("_id", $topBookIds)->get();
 
-        return $books;
+        return $books->isEmpty()
+            ? Book::inRandomOrder()->limit(10)->get()
+            : $books;
     }
 
     public function recommendations()
@@ -66,31 +65,27 @@ class BookController extends Controller
 
         $user = Auth::user();
 
-        // Knjige koje je korisnik već gledao
-        $viewedBookIds = \App\Models\Uses::where("userId", $user->userId)
+        $viewedBookIds = Uses::where("userId", $user->id)
             ->pluck("bookId")
             ->unique();
 
-        // Top 3 žanra korisnika
-        $topGenres = \App\Models\Uses::where("userId", $user->userId)
-            ->join("books", "uses.bookId", "=", "books.bookId")
-            ->select("books.genre")
-            ->groupBy("books.genre")
-            ->orderByRaw("SUM(uses.points) DESC")
-            ->limit(3)
-            ->pluck("books.genre");
+        $topGenres = Uses::where("userId", $user->id)
+            ->get()
+            ->map(fn($use) => Book::find($use->bookId)?->genre)
+            ->filter()
+            ->countBy()
+            ->sortDesc()
+            ->take(3)
+            ->keys();
 
-        if ($topGenres->isEmpty()) {
-            return Book::whereNotIn("bookId", $viewedBookIds)
+        $query = Book::whereNotIn("_id", $viewedBookIds);
+
+        return $topGenres->isEmpty()
+            ? $query->inRandomOrder()->limit(10)->get()
+            : $query
+                ->whereIn("genre", $topGenres)
                 ->inRandomOrder()
                 ->limit(10)
                 ->get();
-        }
-
-        return Book::whereIn("genre", $topGenres)
-            ->whereNotIn("bookId", $viewedBookIds)
-            ->inRandomOrder()
-            ->limit(10)
-            ->get();
     }
 }
