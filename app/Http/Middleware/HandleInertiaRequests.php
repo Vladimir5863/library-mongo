@@ -35,26 +35,26 @@ class HandleInertiaRequests extends Middleware
      * @return array<string, mixed>
      */
     public function share(Request $request): array
-    {
-        return array_merge(parent::share($request), [
-            "auth" => [
-                "user" => fn() => $request->user()
-                    ? [
-                        "userId" => $request->user()->userId,
-                        "name" => $request->user()->name,
-                        "surname" => $request->user()->surname,
-                        "avatar" => Storage::disk("public")->exists(
-                            "avatars/{$request->user()->userId}.png",
-                        )
-                            ? "/storage/avatars/{$request->user()->userId}.png"
-                            : null,
-                        "userType" => $request->user()->userType,
-                    ]
-                    : null,
-            ],
-            "flash" => [
-                "success" => fn() => $request->session()->get("success"),
-            ],
-        ]);
-    }
+{
+    $user = $request->user();
+
+    return array_merge(parent::share($request), [
+        "auth" => [
+            "user" => $user
+                ? [
+                    "userId" => $user->id,
+                    "name" => $user->name,
+                    "surname" => $user->surname,
+                    "avatar" => Storage::disk("public")->exists("avatars/{$user->id}.png")
+                        ? "/storage/avatars/{$user->id}.png"
+                        : null,
+                    "userType" => $user->userType,
+                ]
+                : null,
+        ],
+        "flash" => [
+            "success" => fn() => $request->session()->get("success"),
+        ],
+    ]);
+}
 }

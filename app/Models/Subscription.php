@@ -13,4 +13,8 @@ class Subscription extends Model
         "accountNumber",
         "autoRenew",
     ];
+        protected $casts = [
+        "startDate" => "datetime",
+        "endDate" => "datetime",
+    ];
 }

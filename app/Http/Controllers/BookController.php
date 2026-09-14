@@ -53,7 +53,7 @@ class BookController extends Controller
         $books = Book::whereIn("_id", $topBookIds)->get();
 
         return $books->isEmpty()
-            ? Book::inRandomOrder()->limit(10)->get()
+            ? Book::all()->shuffle()->take(10)
             : $books;
     }
 
@@ -81,11 +81,11 @@ class BookController extends Controller
         $query = Book::whereNotIn("_id", $viewedBookIds);
 
         return $topGenres->isEmpty()
-            ? $query->inRandomOrder()->limit(10)->get()
-            : $query
-                ->whereIn("genre", $topGenres)
-                ->inRandomOrder()
-                ->limit(10)
-                ->get();
+    ? $query->get()->shuffle()->take(10)
+    : $query
+        ->whereIn("genre", $topGenres)
+        ->get()
+        ->shuffle()
+        ->take(10);
     }
 }
