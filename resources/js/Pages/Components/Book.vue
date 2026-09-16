@@ -52,7 +52,7 @@ defineProps({
                 </Link>
 
                 <Link
-                    :href="'/books/' + book.bookId"
+                    :href="'/books/' + book.id"
                     class="text-xs font-semibold text-emerald-700 hover:text-emerald-500"
                 >
                     Detalji

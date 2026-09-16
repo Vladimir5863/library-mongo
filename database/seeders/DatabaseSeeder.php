@@ -16,7 +16,9 @@ use Illuminate\Support\Facades\Hash;
 
 class DatabaseSeeder extends Seeder
 {
-    public function run(): void
+
+/*
+public function run(): void
     {
         // Users
         $admin = User::create([
@@ -199,5 +201,10 @@ class DatabaseSeeder extends Seeder
         }
 
         $this->command->info("Seeder završen!");
+    }
+        */
+    public function run() :void{
+            User::factory()->count(20)->create();
+            Book::factory()->count(50)->create();
     }
 }
